@@ -17,6 +17,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.SourceURL != "https://news.hada.io/new" {
 		t.Fatalf("default source URL = %q", cfg.SourceURL)
 	}
+	if cfg.ClickableLinks {
+		t.Fatal("clickable links should be disabled by default")
+	}
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("default config is invalid: %v", err)
 	}
@@ -61,5 +64,17 @@ func TestSetValidatesValues(t *testing.T) {
 	}
 	if err := Set(&cfg, "interval", "1s"); err == nil {
 		t.Fatal("expected too-short interval to fail")
+	}
+	if cfg.RefreshInterval != "15s" {
+		t.Fatalf("invalid value mutated config: %q", cfg.RefreshInterval)
+	}
+	if err := Set(&cfg, "clickable-links", "true"); err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.ClickableLinks {
+		t.Fatal("clickable links were not enabled")
+	}
+	if err := Set(&cfg, "clickable-links", "sometimes"); err == nil {
+		t.Fatal("expected invalid boolean to fail")
 	}
 }

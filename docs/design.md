@@ -60,6 +60,8 @@ does not need.
 - Merge unrelated Claude settings and hooks, use locking and atomic replacement,
   and snapshot managed spinner values for uninstall.
 - Detect manual changes to managed spinner keys instead of overwriting them.
+- Optionally wrap sanitized titles and validated HTTP or HTTPS URLs in OSC 8
+  hyperlinks while retaining a plain-text fallback.
 - Ship one dependency-light Go binary with no runtime package manager.
 
 Claude Code watches settings files for changes, so a successful background

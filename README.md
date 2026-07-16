@@ -8,7 +8,7 @@ Show the latest [GeekNews](https://news.hada.io/new) headlines while Claude Code
 [GN] A practical guide to coding agents
 ```
 
-The default pool contains the 10 newest posts from the GeekNews latest page. The count, refresh interval, prefix, title length, source URL, and display location are configurable.
+The default pool contains the 10 newest posts from the GeekNews latest page. The count, refresh interval, prefix, title length, source URL, display location, and experimental terminal hyperlinks are configurable.
 
 [Korean documentation](README.ko.md)
 
@@ -62,6 +62,7 @@ Change one value and refresh the active spinner immediately:
 claude-geeknews-spinner config set count 20
 claude-geeknews-spinner config set interval 1m
 claude-geeknews-spinner config set display tip
+claude-geeknews-spinner config set clickable-links true
 ```
 
 Default configuration:
@@ -73,7 +74,8 @@ Default configuration:
   "sourceUrl": "https://news.hada.io/new",
   "prefix": "[GN] ",
   "maxTitleRunes": 100,
-  "displayMode": "verb"
+  "displayMode": "verb",
+  "clickableLinks": false
 }
 ```
 
@@ -87,8 +89,11 @@ Supported values:
 | `prefix` | Any string | Text shown before each title. |
 | `maxTitleRunes` | 20 to 500 | Maximum title length before truncation. |
 | `displayMode` | `verb`, `tip`, `both` | Where Claude Code displays the headlines. |
+| `clickableLinks` | `true`, `false` | Wrap titles in experimental OSC 8 terminal links. |
 
 `verb` puts headlines in the main spinner phrase. Claude Code may also use that phrase in its turn completion text. `tip` uses the secondary tips area. `both` writes to both locations.
+
+When `clickableLinks` is enabled, supported terminals can open a headline with Cmd+click on macOS or Ctrl+click on Linux and Windows. Claude Code does not document OSC 8 support for `spinnerVerbs`, so unsupported renderers may fall back to plain text or strip the link.
 
 ## Commands
 

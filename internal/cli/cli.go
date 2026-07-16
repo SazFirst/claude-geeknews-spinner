@@ -62,6 +62,7 @@ func runInstall(args []string, stdout, stderr io.Writer) error {
 	count := flags.Int("count", cfg.Count, "number of recent headlines")
 	interval := flags.String("interval", cfg.RefreshInterval, "refresh interval, such as 1m")
 	display := flags.String("display", cfg.DisplayMode, "display mode: verb, tip, or both")
+	clickableLinks := flags.Bool("clickable-links", cfg.ClickableLinks, "wrap headlines in terminal hyperlinks")
 	prefix := flags.String("prefix", cfg.Prefix, "headline prefix")
 	maxRunes := flags.Int("max-title-runes", cfg.MaxTitleRunes, "maximum title length in Unicode characters")
 	if err := flags.Parse(args); err != nil {
@@ -70,6 +71,7 @@ func runInstall(args []string, stdout, stderr io.Writer) error {
 	cfg.Count = *count
 	cfg.RefreshInterval = *interval
 	cfg.DisplayMode = strings.ToLower(*display)
+	cfg.ClickableLinks = *clickableLinks
 	cfg.Prefix = *prefix
 	cfg.MaxTitleRunes = *maxRunes
 	if err := config.Save(cfg); err != nil {
@@ -239,6 +241,7 @@ Install options:
   --count 10             Number of latest headlines, from 1 to 50
   --interval 15s         Minimum live refresh interval
   --display verb         verb, tip, or both
+  --clickable-links      Add experimental terminal hyperlinks
   --prefix "[GN] "       Text placed before each title
   --max-title-runes 100  Maximum title length`)
 }

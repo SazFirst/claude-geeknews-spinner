@@ -8,7 +8,7 @@ Claude Code가 작업하는 동안 [GeekNews 최신글](https://news.hada.io/new
 [GN] 코딩 에이전트 실전 가이드
 ```
 
-기본값은 GeekNews 최신글 10개입니다. 항목 수, 갱신 주기, 접두어, 제목 길이, 소스 URL, 표시 위치를 변경할 수 있습니다.
+기본값은 GeekNews 최신글 10개입니다. 항목 수, 갱신 주기, 접두어, 제목 길이, 소스 URL, 표시 위치, 실험적 터미널 링크를 변경할 수 있습니다.
 
 [English documentation](README.md)
 
@@ -62,6 +62,7 @@ claude-geeknews-spinner config path
 claude-geeknews-spinner config set count 20
 claude-geeknews-spinner config set interval 1m
 claude-geeknews-spinner config set display tip
+claude-geeknews-spinner config set clickable-links true
 ```
 
 기본 설정:
@@ -73,7 +74,8 @@ claude-geeknews-spinner config set display tip
   "sourceUrl": "https://news.hada.io/new",
   "prefix": "[GN] ",
   "maxTitleRunes": 100,
-  "displayMode": "verb"
+  "displayMode": "verb",
+  "clickableLinks": false
 }
 ```
 
@@ -85,8 +87,11 @@ claude-geeknews-spinner config set display tip
 | `prefix` | 문자열 | 각 제목 앞에 표시할 문구입니다. |
 | `maxTitleRunes` | 20에서 500 | 제목을 줄이기 전 최대 문자 수입니다. |
 | `displayMode` | `verb`, `tip`, `both` | 제목이 표시될 위치입니다. |
+| `clickableLinks` | `true`, `false` | 제목에 실험적인 OSC 8 터미널 링크를 적용합니다. |
 
 `verb`는 제목을 메인 스피너 문구에 넣습니다. Claude Code가 작업 완료 문구에도 제목을 사용할 수 있습니다. `tip`은 보조 팁 영역을 사용합니다. `both`는 두 위치에 모두 기록합니다.
+
+`clickableLinks`를 활성화하면 지원 터미널에서 macOS는 Cmd+클릭, Linux와 Windows는 Ctrl+클릭으로 제목을 열 수 있습니다. Claude Code는 `spinnerVerbs`의 OSC 8 지원을 명시하지 않으므로 지원하지 않는 렌더러는 일반 텍스트로 표시하거나 링크를 제거할 수 있습니다.
 
 ## 명령
 

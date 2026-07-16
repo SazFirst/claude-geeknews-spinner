@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -83,8 +84,8 @@ func Run(ctx context.Context, force bool, fetcher Fetcher) (Result, error) {
 	}
 	titles := make([]string, 0, len(items))
 	for _, item := range items {
-		if item.Title != "" {
-			titles = append(titles, item.Title)
+		if title := formatHeadline(item, cfg.ClickableLinks); title != "" {
+			titles = append(titles, title)
 		}
 	}
 	if len(titles) == 0 {
@@ -96,6 +97,18 @@ func Run(ctx context.Context, force bool, fetcher Fetcher) (Result, error) {
 	result.FetchedAt = cache.FetchedAt
 	result.Headlines = titles
 	return result, nil
+}
+
+func formatHeadline(item feed.Item, clickable bool) string {
+	title := feed.CleanTitle(item.Title, 0)
+	if title == "" || !clickable {
+		return title
+	}
+	link, err := url.Parse(item.URL)
+	if err != nil || (link.Scheme != "https" && link.Scheme != "http") || link.Host == "" {
+		return title
+	}
+	return "\x1b]8;;" + link.String() + "\a" + title + "\x1b]8;;\a"
 }
 
 func ReadCache() (Cache, error) {

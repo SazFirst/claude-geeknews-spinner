@@ -85,3 +85,39 @@ func TestRunUsesFreshCacheWithoutNetwork(t *testing.T) {
 		t.Fatalf("fetch calls = %d, want 1", fetcher.calls)
 	}
 }
+
+func TestFormatHeadlineCreatesOnlySafeHTTPLinks(t *testing.T) {
+	item := feed.Item{Title: "\x1bUnsafe title", URL: "https://news.hada.io/topic?id=123"}
+	want := "\x1b]8;;https://news.hada.io/topic?id=123\aUnsafe title\x1b]8;;\a"
+	if got := formatHeadline(item, true); got != want {
+		t.Fatalf("linked headline = %q, want %q", got, want)
+	}
+	if got := formatHeadline(item, false); got != "Unsafe title" {
+		t.Fatalf("plain headline = %q", got)
+	}
+	item.URL = "javascript:alert(1)"
+	if got := formatHeadline(item, true); got != "Unsafe title" {
+		t.Fatalf("unsafe URL should fall back to plain text: %q", got)
+	}
+}
+
+func TestRunAppliesClickableHeadlines(t *testing.T) {
+	setupSyncTest(t)
+	cfg := config.Default()
+	cfg.ClickableLinks = true
+	if err := config.Save(cfg); err != nil {
+		t.Fatal(err)
+	}
+	fetcher := &fakeFetcher{items: []feed.Item{{
+		Title: "Linked",
+		URL:   "https://news.hada.io/topic?id=456",
+	}}}
+	result, err := Run(context.Background(), true, fetcher)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "\x1b]8;;https://news.hada.io/topic?id=456\aLinked\x1b]8;;\a"
+	if len(result.Headlines) != 1 || result.Headlines[0] != want {
+		t.Fatalf("headlines = %q, want %q", result.Headlines, want)
+	}
+}

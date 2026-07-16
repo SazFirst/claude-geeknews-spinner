@@ -25,6 +25,7 @@ type Config struct {
 	Prefix          string `json:"prefix"`
 	MaxTitleRunes   int    `json:"maxTitleRunes"`
 	DisplayMode     string `json:"displayMode"`
+	ClickableLinks  bool   `json:"clickableLinks"`
 }
 
 func Default() Config {
@@ -35,6 +36,7 @@ func Default() Config {
 		Prefix:          "[GN] ",
 		MaxTitleRunes:   100,
 		DisplayMode:     "verb",
+		ClickableLinks:  false,
 	}
 }
 
@@ -152,31 +154,42 @@ func Save(c Config) error {
 }
 
 func Set(c *Config, key, value string) error {
+	next := *c
 	switch strings.ToLower(key) {
 	case "count":
 		n, err := strconv.Atoi(value)
 		if err != nil {
 			return fmt.Errorf("count must be an integer: %w", err)
 		}
-		c.Count = n
+		next.Count = n
 	case "interval", "refreshinterval":
-		c.RefreshInterval = value
+		next.RefreshInterval = value
 	case "prefix":
-		c.Prefix = value
+		next.Prefix = value
 	case "maxtitlerunes", "max-title-runes":
 		n, err := strconv.Atoi(value)
 		if err != nil {
 			return fmt.Errorf("maxTitleRunes must be an integer: %w", err)
 		}
-		c.MaxTitleRunes = n
+		next.MaxTitleRunes = n
 	case "display", "displaymode":
-		c.DisplayMode = strings.ToLower(value)
+		next.DisplayMode = strings.ToLower(value)
+	case "clickablelinks", "clickable-links":
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("clickableLinks must be true or false: %w", err)
+		}
+		next.ClickableLinks = enabled
 	case "sourceurl", "source-url":
-		c.SourceURL = value
+		next.SourceURL = value
 	default:
 		return fmt.Errorf("unknown config key %q", key)
 	}
-	return c.Validate()
+	if err := next.Validate(); err != nil {
+		return err
+	}
+	*c = next
+	return nil
 }
 
 func atomicWrite(path string, data []byte, defaultMode os.FileMode) error {
