@@ -114,11 +114,10 @@ claude-geeknews-spinner uninstall [--purge]
 ## Safety
 
 - Existing Claude Code settings and unrelated hooks are preserved.
-- Settings updates use a lock and an atomic file replacement.
+- Settings updates use an atomic file replacement.
 - Invalid Claude settings are never replaced with an empty object.
 - A failed or empty network response leaves the currently installed spinner settings unchanged.
 - Existing spinner values are saved at installation and restored at uninstall.
-- User changes made directly to managed spinner keys are detected instead of overwritten.
 - Control characters and bidirectional text controls are removed from remote titles.
 - `CLAUDE_CONFIG_DIR` is honored for alternate Claude Code profiles.
 

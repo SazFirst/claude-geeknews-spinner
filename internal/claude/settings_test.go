@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 )
 
 func setupTestEnvironment(t *testing.T) string {
@@ -77,12 +76,9 @@ func TestInstallApplyAndUninstallPreserveExistingSettings(t *testing.T) {
 		t.Fatalf("existing hook was removed: %s", settings["hooks"])
 	}
 
-	result, err := Uninstall()
+	_, err := Uninstall()
 	if err != nil {
 		t.Fatal(err)
-	}
-	if result.PreservedUserChanges {
-		t.Fatal("unexpected user-change warning")
 	}
 	settings = readTestSettings(t, path)
 	if !containsJSON(settings["spinnerVerbs"], "Original") {
@@ -115,51 +111,6 @@ func TestMalformedSettingsAreNeverOverwritten(t *testing.T) {
 	}
 	if string(after) != string(original) {
 		t.Fatalf("malformed settings were changed: %q", after)
-	}
-}
-
-func TestApplyDetectsUserChanges(t *testing.T) {
-	setupTestEnvironment(t)
-	path := writeTestSettings(t, map[string]any{"model": "sonnet"})
-	if _, err := Install("/tmp/claude-geeknews-spinner"); err != nil {
-		t.Fatal(err)
-	}
-	if err := Apply(DisplayOptions{Mode: "verb", Titles: []string{"First"}}); err != nil {
-		t.Fatal(err)
-	}
-	settings := readTestSettings(t, path)
-	settings["spinnerVerbs"] = mustJSON(map[string]any{"mode": "replace", "verbs": []string{"User value"}})
-	if err := writeSettings(path, settings); err != nil {
-		t.Fatal(err)
-	}
-	if err := Apply(DisplayOptions{Mode: "verb", Titles: []string{"Second"}}); err == nil {
-		t.Fatal("expected user settings drift to be detected")
-	}
-}
-
-func TestApplySkipsUnchangedSettingsWrite(t *testing.T) {
-	setupTestEnvironment(t)
-	path := writeTestSettings(t, map[string]any{"model": "sonnet"})
-	if _, err := Install("/tmp/claude-geeknews-spinner"); err != nil {
-		t.Fatal(err)
-	}
-	options := DisplayOptions{Mode: "verb", Titles: []string{"Current"}}
-	if err := Apply(options); err != nil {
-		t.Fatal(err)
-	}
-	oldTime := time.Unix(1_000_000, 0)
-	if err := os.Chtimes(path, oldTime, oldTime); err != nil {
-		t.Fatal(err)
-	}
-	if err := Apply(options); err != nil {
-		t.Fatal(err)
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !info.ModTime().Equal(oldTime) {
-		t.Fatalf("unchanged settings were rewritten at %s", info.ModTime())
 	}
 }
 

@@ -57,9 +57,8 @@ does not need.
   never blocked by the network refresh.
 - Fetch live on every hook event. A failed request leaves the currently applied
   settings untouched, and no daemon or persistent headline cache is used.
-- Merge unrelated Claude settings and hooks, use locking and atomic replacement,
+- Merge unrelated Claude settings and hooks, and use atomic replacement,
   and snapshot managed spinner values for uninstall.
-- Detect manual changes to managed spinner keys instead of overwriting them.
 - Optionally wrap sanitized titles and validated HTTP or HTTPS URLs in OSC 8
   hyperlinks while retaining a plain-text fallback.
 - Ship one dependency-light Go binary with no runtime package manager.

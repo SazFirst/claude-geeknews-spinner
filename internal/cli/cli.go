@@ -192,9 +192,6 @@ func runUninstall(args []string, stdout io.Writer) error {
 		return err
 	}
 	fmt.Fprintf(stdout, "Removed hooks from %s and restored the previous spinner settings.\n", result.SettingsPath)
-	if result.PreservedUserChanges {
-		fmt.Fprintln(stdout, "Preserved spinner values that were changed after installation.")
-	}
 	if *purge {
 		dir, err := config.Dir()
 		if err != nil {

@@ -1,7 +1,6 @@
 package claude
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -9,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"time"
 
 	"github.com/saz/claude-geeknews-spinner/internal/config"
@@ -32,7 +30,6 @@ type InstallState struct {
 	SettingsPath string   `json:"settingsPath"`
 	Executables  []string `json:"executables"`
 	Original     Snapshot `json:"original"`
-	LastApplied  Snapshot `json:"lastApplied,omitempty"`
 	InstalledAt  string   `json:"installedAt"`
 }
 
@@ -85,11 +82,6 @@ func Install(executable string) (InstallState, error) {
 	if err != nil {
 		return InstallState{}, err
 	}
-	lock, err := acquireSettingsLock(settingsPath)
-	if err != nil {
-		return InstallState{}, err
-	}
-	defer lock.Release()
 	settings, err := readSettings(settingsPath)
 	if err != nil {
 		return InstallState{}, err
@@ -102,7 +94,6 @@ func Install(executable string) (InstallState, error) {
 			Version:      stateVersion,
 			SettingsPath: settingsPath,
 			Original:     original,
-			LastApplied:  original,
 			InstalledAt:  time.Now().UTC().Format(time.RFC3339),
 		}
 	} else if err != nil {
@@ -136,29 +127,16 @@ func Apply(options DisplayOptions) error {
 	if err != nil {
 		return err
 	}
-	lock, err := acquireSettingsLock(settingsPath)
+	settings, err := readSettings(settingsPath)
 	if err != nil {
 		return err
 	}
-	defer lock.Release()
 	state, err := LoadState(settingsPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return errors.New("not installed; run claude-geeknews-spinner install first")
 		}
 		return err
-	}
-	settings, err := readSettings(settingsPath)
-	if err != nil {
-		return err
-	}
-	current := takeSnapshot(settings)
-	if state.LastApplied != nil {
-		for _, key := range managedKeys {
-			if !rawEqual(current[key], state.LastApplied[key]) {
-				return fmt.Errorf("Claude setting %s changed after installation; run uninstall before replacing it", key)
-			}
-		}
 	}
 	restoreSnapshot(settings, state.Original)
 
@@ -177,24 +155,11 @@ func Apply(options DisplayOptions) error {
 	default:
 		return fmt.Errorf("unsupported display mode %q", options.Mode)
 	}
-	desired := takeSnapshot(settings)
-	if snapshotsEqual(current, desired) {
-		if state.LastApplied == nil {
-			state.LastApplied = desired
-			return saveState(state)
-		}
-		return nil
-	}
-	state.LastApplied = desired
-	if err := writeSettings(settingsPath, settings); err != nil {
-		return err
-	}
-	return saveState(state)
+	return writeSettings(settingsPath, settings)
 }
 
 type UninstallResult struct {
-	PreservedUserChanges bool
-	SettingsPath         string
+	SettingsPath string
 }
 
 func Uninstall() (UninstallResult, error) {
@@ -206,11 +171,6 @@ func Uninstall() (UninstallResult, error) {
 	if err != nil {
 		return UninstallResult{}, err
 	}
-	lock, err := acquireSettingsLock(settingsPath)
-	if err != nil {
-		return UninstallResult{}, err
-	}
-	defer lock.Release()
 	settings, err := readSettings(settingsPath)
 	if err != nil {
 		return UninstallResult{}, err
@@ -219,14 +179,8 @@ func Uninstall() (UninstallResult, error) {
 		return UninstallResult{}, err
 	}
 
-	preserved := false
-	current := takeSnapshot(settings)
 	for _, key := range managedKeys {
-		if state.LastApplied != nil && rawEqual(current[key], state.LastApplied[key]) {
-			restoreValue(settings, key, state.Original[key])
-		} else if state.LastApplied != nil && !rawEqual(current[key], state.LastApplied[key]) {
-			preserved = true
-		}
+		restoreValue(settings, key, state.Original[key])
 	}
 	if err := writeSettings(settingsPath, settings); err != nil {
 		return UninstallResult{}, err
@@ -238,7 +192,7 @@ func Uninstall() (UninstallResult, error) {
 	if err := os.Remove(statePath); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return UninstallResult{}, err
 	}
-	return UninstallResult{PreservedUserChanges: preserved, SettingsPath: settingsPath}, nil
+	return UninstallResult{SettingsPath: settingsPath}, nil
 }
 
 func IsInstalled() (bool, error) {
@@ -381,16 +335,6 @@ func decodeHooks(raw json.RawMessage) (map[string][]map[string]any, error) {
 	return hooks, nil
 }
 
-func acquireSettingsLock(settingsPath string) (*store.Lock, error) {
-	dir, err := config.Dir()
-	if err != nil {
-		return nil, err
-	}
-	sum := sha256.Sum256([]byte(settingsPath))
-	path := filepath.Join(dir, "locks", "settings-"+hex.EncodeToString(sum[:8])+".lock")
-	return store.AcquireLock(path, 3*time.Second, 30*time.Second)
-}
-
 func isOurHandler(handler map[string]any, executables []string) bool {
 	command, _ := handler["command"].(string)
 	args, _ := handler["args"].([]any)
@@ -412,29 +356,6 @@ func appendUnique(values []string, value string) []string {
 		}
 	}
 	return append(values, value)
-}
-
-func rawEqual(a, b RawValue) bool {
-	if a.Present != b.Present {
-		return false
-	}
-	if !a.Present {
-		return true
-	}
-	var av, bv any
-	if json.Unmarshal(a.Value, &av) != nil || json.Unmarshal(b.Value, &bv) != nil {
-		return bytes.Equal(a.Value, b.Value)
-	}
-	return reflect.DeepEqual(av, bv)
-}
-
-func snapshotsEqual(a, b Snapshot) bool {
-	for _, key := range managedKeys {
-		if !rawEqual(a[key], b[key]) {
-			return false
-		}
-	}
-	return true
 }
 
 func mustJSON(value any) json.RawMessage {

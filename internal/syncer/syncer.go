@@ -4,13 +4,10 @@ import (
 	"context"
 	"errors"
 	"net/url"
-	"path/filepath"
-	"time"
 
 	"github.com/saz/claude-geeknews-spinner/internal/claude"
 	"github.com/saz/claude-geeknews-spinner/internal/config"
 	"github.com/saz/claude-geeknews-spinner/internal/feed"
-	"github.com/saz/claude-geeknews-spinner/internal/store"
 )
 
 type Fetcher interface {
@@ -22,16 +19,6 @@ type Result struct {
 }
 
 func Run(ctx context.Context, fetcher Fetcher) (Result, error) {
-	configDir, err := config.Dir()
-	if err != nil {
-		return Result{}, err
-	}
-	lock, err := store.AcquireLock(filepath.Join(configDir, "locks", "sync.lock"), 3*time.Second, 30*time.Second)
-	if err != nil {
-		return Result{}, err
-	}
-	defer lock.Release()
-
 	cfg, err := config.Load()
 	if err != nil {
 		return Result{}, err
