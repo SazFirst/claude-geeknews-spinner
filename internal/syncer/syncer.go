@@ -60,12 +60,17 @@ func Run(ctx context.Context, fetcher Fetcher) (Result, error) {
 
 func formatHeadline(item feed.Item, clickable bool) string {
 	title := feed.CleanTitle(item.Title, 0)
-	if title == "" || !clickable {
-		return title
+	summary := feed.CleanTitle(item.Summary, 0)
+	headline := title
+	if summary != "" {
+		headline += " - " + summary
+	}
+	if headline == "" || !clickable {
+		return headline
 	}
 	link, err := url.Parse(item.URL)
 	if err != nil || (link.Scheme != "https" && link.Scheme != "http") || link.Host == "" {
-		return title
+		return headline
 	}
-	return "\x1b]8;;" + link.String() + "\a" + title + "\x1b]8;;\a"
+	return "\x1b]8;;" + link.String() + "\a" + headline + "\x1b]8;;\a"
 }

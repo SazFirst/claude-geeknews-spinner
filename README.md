@@ -95,7 +95,7 @@ Supported values:
 | `displayMode` | `verb`, `tip`, `both` | Where Claude Code displays the headlines. |
 | `clickableLinks` | `true`, `false` | Wrap titles in experimental OSC 8 terminal links. |
 
-`verb` puts headlines in the main spinner phrase. Claude Code may also use that phrase in its turn completion text. `tip` uses the secondary tips area. `both` writes to both locations.
+`verb` appends headlines to Claude Code's built-in spinner verbs, so the default verbs remain available. Claude Code may also use that phrase in its turn completion text. Each entry combines the title with the first summary line when GeekNews provides one. `tip` uses the secondary tips area. `both` writes to both locations.
 
 When `clickableLinks` is enabled, supported terminals can open a headline with Cmd+click on macOS or Ctrl+click on Linux and Windows. Claude Code does not document OSC 8 support for `spinnerVerbs`, so unsupported renderers may fall back to plain text or strip the link.
 

@@ -162,7 +162,7 @@ func Apply(options DisplayOptions) error {
 	}
 	restoreSnapshot(settings, state.Original)
 
-	verbs := map[string]any{"mode": "replace", "verbs": options.Titles}
+	verbs := map[string]any{"mode": "append", "verbs": options.Titles}
 	tips := map[string]any{"excludeDefault": true, "tips": options.Titles}
 	switch options.Mode {
 	case "verb":

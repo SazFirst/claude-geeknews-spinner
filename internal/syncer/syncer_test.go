@@ -95,16 +95,16 @@ func TestRunFailureLeavesSpinnerUnchanged(t *testing.T) {
 }
 
 func TestFormatHeadlineCreatesOnlySafeHTTPLinks(t *testing.T) {
-	item := feed.Item{Title: "\x1bUnsafe title", URL: "https://news.hada.io/topic?id=123"}
-	want := "\x1b]8;;https://news.hada.io/topic?id=123\aUnsafe title\x1b]8;;\a"
+	item := feed.Item{Title: "\x1bUnsafe title", Summary: "One line summary", URL: "https://news.hada.io/topic?id=123"}
+	want := "\x1b]8;;https://news.hada.io/topic?id=123\aUnsafe title - One line summary\x1b]8;;\a"
 	if got := formatHeadline(item, true); got != want {
 		t.Fatalf("linked headline = %q, want %q", got, want)
 	}
-	if got := formatHeadline(item, false); got != "Unsafe title" {
+	if got := formatHeadline(item, false); got != "Unsafe title - One line summary" {
 		t.Fatalf("plain headline = %q", got)
 	}
 	item.URL = "javascript:alert(1)"
-	if got := formatHeadline(item, true); got != "Unsafe title" {
+	if got := formatHeadline(item, true); got != "Unsafe title - One line summary" {
 		t.Fatalf("unsafe URL should fall back to plain text: %q", got)
 	}
 }
@@ -117,14 +117,15 @@ func TestRunAppliesClickableHeadlines(t *testing.T) {
 		t.Fatal(err)
 	}
 	fetcher := &fakeFetcher{items: []feed.Item{{
-		Title: "Linked",
-		URL:   "https://news.hada.io/topic?id=456",
+		Title:   "Linked",
+		Summary: "A short summary",
+		URL:     "https://news.hada.io/topic?id=456",
 	}}}
 	result, err := Run(context.Background(), fetcher)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "\x1b]8;;https://news.hada.io/topic?id=456\aLinked\x1b]8;;\a"
+	want := "\x1b]8;;https://news.hada.io/topic?id=456\aLinked - A short summary\x1b]8;;\a"
 	if len(result.Headlines) != 1 || result.Headlines[0] != want {
 		t.Fatalf("headlines = %q, want %q", result.Headlines, want)
 	}

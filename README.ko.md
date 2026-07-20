@@ -87,7 +87,7 @@ claude-geeknews-spinner config set clickable-links true
 | `displayMode` | `verb`, `tip`, `both` | 제목이 표시될 위치입니다. |
 | `clickableLinks` | `true`, `false` | 제목에 실험적인 OSC 8 터미널 링크를 적용합니다. |
 
-`verb`는 제목을 메인 스피너 문구에 넣습니다. Claude Code가 작업 완료 문구에도 제목을 사용할 수 있습니다. `tip`은 보조 팁 영역을 사용합니다. `both`는 두 위치에 모두 기록합니다.
+`verb`는 Claude Code 기본 스피너 verb를 유지하면서 GeekNews 제목을 뒤에 추가합니다. Claude Code가 작업 완료 문구에도 해당 문구를 사용할 수 있습니다. 각 항목은 GeekNews가 제공하는 경우 제목과 본문 요약 첫 줄을 함께 표시합니다. `tip`은 보조 팁 영역을 사용합니다. `both`는 두 위치에 모두 기록합니다.
 
 `clickableLinks`를 활성화하면 지원 터미널에서 macOS는 Cmd+클릭, Linux와 Windows는 Ctrl+클릭으로 제목을 열 수 있습니다. Claude Code는 `spinnerVerbs`의 OSC 8 지원을 명시하지 않으므로 지원하지 않는 렌더러는 일반 텍스트로 표시하거나 링크를 제거할 수 있습니다.
 

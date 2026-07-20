@@ -25,6 +25,9 @@ func TestParseHTMLReturnsLatestRequestedTopics(t *testing.T) {
 	if items[0].Title != "[GN] 첫 번째 새 소식" {
 		t.Fatalf("first title = %q", items[0].Title)
 	}
+	if items[0].Summary != "첫 번째 본문 요약입니다." {
+		t.Fatalf("first summary = %q", items[0].Summary)
+	}
 	if items[1].Title != "[GN] 두 번째 & 중요한 소식" {
 		t.Fatalf("second title = %q", items[1].Title)
 	}

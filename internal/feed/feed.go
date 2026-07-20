@@ -22,6 +22,7 @@ const maxFeedBytes = 2 << 20
 
 type Item struct {
 	Title     string    `json:"title"`
+	Summary   string    `json:"summary"`
 	URL       string    `json:"url"`
 	Published time.Time `json:"published"`
 }
@@ -32,6 +33,8 @@ type atomFeed struct {
 
 type atomEntry struct {
 	Title     string     `xml:"title"`
+	Summary   string     `xml:"summary"`
+	Content   string     `xml:"content"`
 	ID        string     `xml:"id"`
 	Published string     `xml:"published"`
 	Updated   string     `xml:"updated"`
@@ -105,12 +108,17 @@ func parseAtom(data []byte, count, maxTitleRunes int, prefix string) ([]Item, er
 			continue
 		}
 		seen[title] = struct{}{}
+		summary := CleanTitle(entry.Summary, maxTitleRunes)
+		if summary == "" {
+			summary = CleanTitle(entry.Content, maxTitleRunes)
+		}
 		published := parseTime(entry.Published)
 		if published.IsZero() {
 			published = parseTime(entry.Updated)
 		}
 		items = append(items, Item{
 			Title:     prefix + title,
+			Summary:   summary,
 			URL:       alternateURL(entry),
 			Published: published,
 		})
@@ -245,7 +253,11 @@ func itemFromTopicNode(node *html.Node, base *url.URL, maxTitleRunes int, prefix
 		relative, _ := url.Parse("/topic?id=" + url.QueryEscape(id))
 		topicURL = base.ResolveReference(relative).String()
 	}
-	return Item{Title: prefix + title, URL: topicURL, Published: published}
+	summary := ""
+	if summaryNode := findElement(node, "div", "topicdesc"); summaryNode != nil {
+		summary = CleanTitle(textContent(summaryNode), maxTitleRunes)
+	}
+	return Item{Title: prefix + title, Summary: summary, URL: topicURL, Published: published}
 }
 
 func findElement(node *html.Node, tag, class string) *html.Node {
