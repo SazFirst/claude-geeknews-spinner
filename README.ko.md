@@ -8,7 +8,7 @@ Claude Code가 작업하는 동안 [GeekNews 최신글](https://news.hada.io/new
 [GN] 코딩 에이전트 실전 가이드
 ```
 
-기본값은 GeekNews 최신글 10개입니다. 항목 수, 갱신 주기, 접두어, 제목 길이, 소스 URL, 표시 위치, 실험적 터미널 링크를 변경할 수 있습니다.
+기본값은 GeekNews 최신글 10개입니다. 항목 수, 접두어, 제목 길이, 소스 URL, 표시 위치, 실험적 터미널 링크를 변경할 수 있습니다.
 
 [English documentation](README.md)
 
@@ -16,12 +16,14 @@ Claude Code가 작업하는 동안 [GeekNews 최신글](https://news.hada.io/new
 
 Claude Code는 URL을 스피너 데이터로 직접 읽을 수 없습니다. 이 도구는 가벼운 비동기 훅 두 개를 설치합니다.
 
-- `SessionStart`는 세션 시작과 재개 시 최신 제목을 확인합니다.
-- `UserPromptSubmit`은 사용자가 프롬프트를 보낼 때 다시 확인합니다.
+- `SessionStart`는 세션 시작과 재개 시 최신 제목을 가져옵니다.
+- `UserPromptSubmit`은 사용자가 프롬프트를 보낼 때 다시 가져옵니다.
 
-기본 캐시 유효 시간은 GeekNews 최신글 페이지의 공개 캐시 정책과 같은 15초입니다. 캐시가 최신이면 네트워크 요청 없이 바로 종료합니다. 캐시가 오래됐으면 백그라운드에서 갱신하므로 Claude Code 작업을 기다리게 하지 않습니다. 실행 중인 세션도 변경된 설정을 자동으로 읽습니다.
+각 훅은 실시간 네트워크 요청을 수행합니다. 비동기 훅이므로 Claude Code는 네트워크 응답을 기다리지 않으며, 성공한 결과는 이후 스피너 선택에 사용됩니다. 제목을 영구 캐시하지 않습니다.
 
 daemon을 사용하지 않으며 훅 실행 사이에 상주하는 프로세스도 없습니다.
+
+`spinnerVerbs`는 시간에 따라 순환하는 재생 목록이 아니라 선택 후보 목록입니다. Claude Code는 일반적으로 turn마다 항목 하나를 선택하고 turn이 초기화될 때까지 유지합니다. 내장 thinking 진행 상태, 도구 실행, task 상태가 화면의 문구를 일시적으로 바꿀 수는 있지만 custom verb 자체를 시간 간격으로 순환하지는 않습니다. `UserPromptSubmit` 훅은 비동기로 실행되므로 새로 가져온 목록은 훅을 발생시킨 현재 turn보다 이후 선택에 확실히 반영됩니다.
 
 ## 설치
 
@@ -41,7 +43,6 @@ claude-geeknews-spinner install
 ```bash
 claude-geeknews-spinner install \
   --count 20 \
-  --interval 30s \
   --display verb \
   --prefix "[GeekNews] " \
   --max-title-runes 120
@@ -60,7 +61,6 @@ claude-geeknews-spinner config path
 
 ```bash
 claude-geeknews-spinner config set count 20
-claude-geeknews-spinner config set interval 1m
 claude-geeknews-spinner config set display tip
 claude-geeknews-spinner config set clickable-links true
 ```
@@ -70,7 +70,6 @@ claude-geeknews-spinner config set clickable-links true
 ```json
 {
   "count": 10,
-  "refreshInterval": "15s",
   "sourceUrl": "https://news.hada.io/new",
   "prefix": "[GN] ",
   "maxTitleRunes": 100,
@@ -82,7 +81,6 @@ claude-geeknews-spinner config set clickable-links true
 | 설정 | 값 | 설명 |
 | --- | --- | --- |
 | `count` | 1에서 50 | 최신 제목 개수입니다. 필요하면 다음 페이지도 읽습니다. |
-| `refreshInterval` | 15초에서 24시간 | 다음 네트워크 요청까지의 최소 시간입니다. |
 | `sourceUrl` | HTTP 또는 HTTPS 절대 URL | GeekNews HTML 구조와 Atom 피드를 지원합니다. |
 | `prefix` | 문자열 | 각 제목 앞에 표시할 문구입니다. |
 | `maxTitleRunes` | 20에서 500 | 제목을 줄이기 전 최대 문자 수입니다. |
@@ -103,14 +101,14 @@ claude-geeknews-spinner status
 claude-geeknews-spinner uninstall [--purge]
 ```
 
-`refresh`는 즉시 네트워크 요청을 실행합니다. `status`는 설치 상태, 설정, 캐시 개수, 마지막 성공 시간을 표시합니다. `uninstall`은 이 도구가 설치한 훅만 제거하고 설치 전 스피너 값을 복원합니다. `--purge`를 추가하면 설정과 캐시도 삭제합니다.
+`refresh`는 즉시 네트워크 요청을 실행합니다. `status`는 설치 상태와 설정 경로를 표시합니다. `uninstall`은 이 도구가 설치한 훅만 제거하고 설치 전 스피너 값을 복원합니다. `--purge`를 추가하면 설정도 삭제합니다.
 
 ## 안전성
 
 - 기존 Claude Code 설정과 관련 없는 훅을 보존합니다.
 - 잠금과 원자적 파일 교체를 사용합니다.
 - 잘못된 Claude 설정을 빈 객체로 덮어쓰지 않습니다.
-- 네트워크 요청이 실패하거나 결과가 비어 있으면 마지막 정상 캐시를 유지합니다.
+- 네트워크 요청이 실패하거나 결과가 비어 있으면 현재 적용된 스피너 설정을 변경하지 않습니다.
 - 설치 전 스피너 값을 저장하고 제거할 때 복원합니다.
 - 관리 중인 스피너 키를 사용자가 직접 바꾸면 덮어쓰지 않고 변경을 감지합니다.
 - 원격 제목의 제어 문자와 양방향 텍스트 제어 문자를 제거합니다.

@@ -177,7 +177,15 @@ func Apply(options DisplayOptions) error {
 	default:
 		return fmt.Errorf("unsupported display mode %q", options.Mode)
 	}
-	state.LastApplied = takeSnapshot(settings)
+	desired := takeSnapshot(settings)
+	if snapshotsEqual(current, desired) {
+		if state.LastApplied == nil {
+			state.LastApplied = desired
+			return saveState(state)
+		}
+		return nil
+	}
+	state.LastApplied = desired
 	if err := writeSettings(settingsPath, settings); err != nil {
 		return err
 	}
@@ -374,12 +382,12 @@ func decodeHooks(raw json.RawMessage) (map[string][]map[string]any, error) {
 }
 
 func acquireSettingsLock(settingsPath string) (*store.Lock, error) {
-	dir, err := config.CacheDir()
+	dir, err := config.Dir()
 	if err != nil {
 		return nil, err
 	}
 	sum := sha256.Sum256([]byte(settingsPath))
-	path := filepath.Join(dir, "settings-"+hex.EncodeToString(sum[:8])+".lock")
+	path := filepath.Join(dir, "locks", "settings-"+hex.EncodeToString(sum[:8])+".lock")
 	return store.AcquireLock(path, 3*time.Second, 30*time.Second)
 }
 
@@ -418,6 +426,15 @@ func rawEqual(a, b RawValue) bool {
 		return bytes.Equal(a.Value, b.Value)
 	}
 	return reflect.DeepEqual(av, bv)
+}
+
+func snapshotsEqual(a, b Snapshot) bool {
+	for _, key := range managedKeys {
+		if !rawEqual(a[key], b[key]) {
+			return false
+		}
+	}
+	return true
 }
 
 func mustJSON(value any) json.RawMessage {

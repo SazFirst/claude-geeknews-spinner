@@ -39,7 +39,7 @@ func Run(args []string, stdout, stderr io.Writer) error {
 	case "hook":
 		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 		defer cancel()
-		_, _ = syncer.Run(ctx, false, feed.NewClient())
+		_, _ = syncer.Run(ctx, feed.NewClient())
 		return nil
 	case "version", "--version", "-v":
 		fmt.Fprintln(stdout, Version)
@@ -60,7 +60,6 @@ func runInstall(args []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("install", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	count := flags.Int("count", cfg.Count, "number of recent headlines")
-	interval := flags.String("interval", cfg.RefreshInterval, "refresh interval, such as 1m")
 	display := flags.String("display", cfg.DisplayMode, "display mode: verb, tip, or both")
 	clickableLinks := flags.Bool("clickable-links", cfg.ClickableLinks, "wrap headlines in terminal hyperlinks")
 	prefix := flags.String("prefix", cfg.Prefix, "headline prefix")
@@ -69,7 +68,6 @@ func runInstall(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	cfg.Count = *count
-	cfg.RefreshInterval = *interval
 	cfg.DisplayMode = strings.ToLower(*display)
 	cfg.ClickableLinks = *clickableLinks
 	cfg.Prefix = *prefix
@@ -97,7 +95,7 @@ func runInstall(args []string, stdout, stderr io.Writer) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
-	result, syncErr := syncer.Run(ctx, true, feed.NewClient())
+	result, syncErr := syncer.Run(ctx, feed.NewClient())
 	if syncErr != nil {
 		fmt.Fprintf(stderr, "warning: initial refresh failed: %v\n", syncErr)
 		fmt.Fprintln(stdout, "The next Claude Code session will retry automatically.")
@@ -108,25 +106,16 @@ func runInstall(args []string, stdout, stderr io.Writer) error {
 }
 
 func runRefresh(args []string, stdout io.Writer) error {
-	flags := flag.NewFlagSet("refresh", flag.ContinueOnError)
-	force := flags.Bool("force", true, "fetch even when the cache is fresh")
-	if err := flags.Parse(args); err != nil {
-		return err
+	if len(args) != 0 {
+		return errors.New("usage: claude-geeknews-spinner refresh")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
-	result, err := syncer.Run(ctx, *force, feed.NewClient())
+	result, err := syncer.Run(ctx, feed.NewClient())
 	if err != nil {
 		return err
 	}
-	source := "cache"
-	if result.Fetched {
-		source = "GeekNews"
-	}
-	fmt.Fprintf(stdout, "Updated the spinner with %d headlines from %s.\n", len(result.Headlines), source)
-	if result.FetchError != nil {
-		fmt.Fprintf(stdout, "The live request failed, so cached headlines were used: %v\n", result.FetchError)
-	}
+	fmt.Fprintf(stdout, "Fetched and applied %d current GeekNews headlines.\n", len(result.Headlines))
 	return nil
 }
 
@@ -166,7 +155,7 @@ func runConfig(args []string, stdout io.Writer) error {
 	if installed {
 		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 		defer cancel()
-		if _, err := syncer.Run(ctx, true, feed.NewClient()); err != nil {
+		if _, err := syncer.Run(ctx, feed.NewClient()); err != nil {
 			return fmt.Errorf("config saved, but refresh failed: %w", err)
 		}
 		fmt.Fprintln(stdout, "Refreshed the active spinner configuration.")
@@ -188,18 +177,13 @@ func runStatus(stdout io.Writer) error {
 		return err
 	}
 	fmt.Fprintf(stdout, "Installed: %t\nClaude settings: %s\nConfig: %s\n", installed, settingsPath, configPath)
-	cache, err := syncer.ReadCache()
-	if err == nil {
-		fmt.Fprintf(stdout, "Cached headlines: %d\nLast successful fetch: %s\n", len(cache.Items), cache.FetchedAt.Local().Format(time.RFC3339))
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
+	fmt.Fprintln(stdout, "Refresh: live on SessionStart and UserPromptSubmit")
 	return nil
 }
 
 func runUninstall(args []string, stdout io.Writer) error {
 	flags := flag.NewFlagSet("uninstall", flag.ContinueOnError)
-	purge := flags.Bool("purge", false, "also delete config and cached headlines")
+	purge := flags.Bool("purge", false, "also delete config data")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -212,9 +196,6 @@ func runUninstall(args []string, stdout io.Writer) error {
 		fmt.Fprintln(stdout, "Preserved spinner values that were changed after installation.")
 	}
 	if *purge {
-		if err := syncer.PurgeCache(); err != nil {
-			return err
-		}
 		dir, err := config.Dir()
 		if err != nil {
 			return err
@@ -222,7 +203,7 @@ func runUninstall(args []string, stdout io.Writer) error {
 		if err := os.RemoveAll(dir); err != nil {
 			return err
 		}
-		fmt.Fprintln(stdout, "Deleted config and cache data.")
+		fmt.Fprintln(stdout, "Deleted config data.")
 	}
 	return nil
 }
@@ -239,7 +220,6 @@ Usage:
 
 Install options:
   --count 10             Number of latest headlines, from 1 to 50
-  --interval 15s         Minimum live refresh interval
   --display verb         verb, tip, or both
   --clickable-links      Add experimental terminal hyperlinks
   --prefix "[GN] "       Text placed before each title

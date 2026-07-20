@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func setupTestEnvironment(t *testing.T) string {
@@ -13,7 +14,6 @@ func setupTestEnvironment(t *testing.T) string {
 	t.Setenv("HOME", root)
 	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(root, ".claude"))
 	t.Setenv("CLAUDE_GEEKNEWS_CONFIG_DIR", filepath.Join(root, "tool-config"))
-	t.Setenv("CLAUDE_GEEKNEWS_CACHE_DIR", filepath.Join(root, "tool-cache"))
 	return root
 }
 
@@ -134,6 +134,32 @@ func TestApplyDetectsUserChanges(t *testing.T) {
 	}
 	if err := Apply(DisplayOptions{Mode: "verb", Titles: []string{"Second"}}); err == nil {
 		t.Fatal("expected user settings drift to be detected")
+	}
+}
+
+func TestApplySkipsUnchangedSettingsWrite(t *testing.T) {
+	setupTestEnvironment(t)
+	path := writeTestSettings(t, map[string]any{"model": "sonnet"})
+	if _, err := Install("/tmp/claude-geeknews-spinner"); err != nil {
+		t.Fatal(err)
+	}
+	options := DisplayOptions{Mode: "verb", Titles: []string{"Current"}}
+	if err := Apply(options); err != nil {
+		t.Fatal(err)
+	}
+	oldTime := time.Unix(1_000_000, 0)
+	if err := os.Chtimes(path, oldTime, oldTime); err != nil {
+		t.Fatal(err)
+	}
+	if err := Apply(options); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !info.ModTime().Equal(oldTime) {
+		t.Fatalf("unchanged settings were rewritten at %s", info.ModTime())
 	}
 }
 

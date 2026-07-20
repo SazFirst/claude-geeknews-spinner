@@ -30,7 +30,6 @@ func setupSyncTest(t *testing.T) {
 	t.Setenv("HOME", root)
 	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(root, ".claude"))
 	t.Setenv("CLAUDE_GEEKNEWS_CONFIG_DIR", filepath.Join(root, "tool-config"))
-	t.Setenv("CLAUDE_GEEKNEWS_CACHE_DIR", filepath.Join(root, "tool-cache"))
 	settingsPath, _ := claude.SettingsPath()
 	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o700); err != nil {
 		t.Fatal(err)
@@ -46,43 +45,52 @@ func setupSyncTest(t *testing.T) {
 	}
 }
 
-func TestRunFetchesThenFallsBackToCache(t *testing.T) {
+func TestRunFetchesEveryTime(t *testing.T) {
 	setupSyncTest(t)
 	now := time.Now()
 	live := &fakeFetcher{items: []feed.Item{
 		{Title: "One", Published: now},
 		{Title: "Two", Published: now.Add(-time.Minute)},
 	}}
-	result, err := Run(context.Background(), true, live)
+	result, err := Run(context.Background(), live)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !result.Fetched || len(result.Headlines) != 2 {
+	if len(result.Headlines) != 2 {
 		t.Fatalf("unexpected live result: %+v", result)
 	}
-
-	offline := &fakeFetcher{err: errors.New("offline")}
-	result, err = Run(context.Background(), true, offline)
-	if err != nil {
-		t.Fatalf("cached fallback failed: %v", err)
+	if _, err := Run(context.Background(), live); err != nil {
+		t.Fatal(err)
 	}
-	if !result.UsedCache || result.FetchError == nil || len(result.Headlines) != 2 {
-		t.Fatalf("unexpected fallback result: %+v", result)
+	if live.calls != 2 {
+		t.Fatalf("fetch calls = %d, want 2", live.calls)
 	}
 }
 
-func TestRunUsesFreshCacheWithoutNetwork(t *testing.T) {
+func TestRunFailureLeavesSpinnerUnchanged(t *testing.T) {
 	setupSyncTest(t)
-	fetcher := &fakeFetcher{items: []feed.Item{{Title: "Cached", Published: time.Now()}}}
-	if _, err := Run(context.Background(), true, fetcher); err != nil {
+	fetcher := &fakeFetcher{items: []feed.Item{{Title: "Current", Published: time.Now()}}}
+	if _, err := Run(context.Background(), fetcher); err != nil {
 		t.Fatal(err)
 	}
-	fetcher.err = errors.New("should not be called")
-	if _, err := Run(context.Background(), false, fetcher); err != nil {
+	settingsPath, err := claude.SettingsPath()
+	if err != nil {
 		t.Fatal(err)
 	}
-	if fetcher.calls != 1 {
-		t.Fatalf("fetch calls = %d, want 1", fetcher.calls)
+	before, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fetcher.err = errors.New("offline")
+	if _, err := Run(context.Background(), fetcher); err == nil {
+		t.Fatal("expected live fetch failure")
+	}
+	after, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Fatal("settings changed after a failed live fetch")
 	}
 }
 
@@ -112,7 +120,7 @@ func TestRunAppliesClickableHeadlines(t *testing.T) {
 		Title: "Linked",
 		URL:   "https://news.hada.io/topic?id=456",
 	}}}
-	result, err := Run(context.Background(), true, fetcher)
+	result, err := Run(context.Background(), fetcher)
 	if err != nil {
 		t.Fatal(err)
 	}

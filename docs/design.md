@@ -17,8 +17,8 @@ combined list to `spinnerVerbs`.
 This project does not copy that architecture. A tool-use hook can run many
 times during one turn and is unrelated to when the user starts waiting. Here,
 `SessionStart` primes the data and `UserPromptSubmit` starts a non-blocking
-freshness check at the point a new spinner is about to be useful. The default
-cache lifetime is 15 seconds instead of 30 minutes.
+live request at the point a new spinner is about to be useful. Unlike
+`claudenews`, this project does not persist a headline cache.
 
 ### One-shot remote updater
 
@@ -55,8 +55,8 @@ does not need.
   titles. The default is 10.
 - Install async `SessionStart` and `UserPromptSubmit` exec-form hooks. Claude is
   never blocked by the network refresh.
-- Use a 15-second cache by default, with stale-cache fallback on network or
-  parsing failures. No daemon remains resident.
+- Fetch live on every hook event. A failed request leaves the currently applied
+  settings untouched, and no daemon or persistent headline cache is used.
 - Merge unrelated Claude settings and hooks, use locking and atomic replacement,
   and snapshot managed spinner values for uninstall.
 - Detect manual changes to managed spinner keys instead of overwriting them.
@@ -65,6 +65,6 @@ does not need.
 - Ship one dependency-light Go binary with no runtime package manager.
 
 Claude Code watches settings files for changes, so a successful background
-refresh becomes visible without restarting the running session. The practical
-freshness bound is the configured cache interval plus network latency, provided
-a session-start or prompt-submit event has occurred.
+refresh becomes available without restarting the running session. A verb
+already selected for the current turn can remain in component state; the new
+pool is reliable for subsequent selections.

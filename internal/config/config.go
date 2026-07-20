@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,7 +11,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 )
 
 const (
@@ -19,37 +19,28 @@ const (
 )
 
 type Config struct {
-	Count           int    `json:"count"`
-	RefreshInterval string `json:"refreshInterval"`
-	SourceURL       string `json:"sourceUrl"`
-	Prefix          string `json:"prefix"`
-	MaxTitleRunes   int    `json:"maxTitleRunes"`
-	DisplayMode     string `json:"displayMode"`
-	ClickableLinks  bool   `json:"clickableLinks"`
+	Count          int    `json:"count"`
+	SourceURL      string `json:"sourceUrl"`
+	Prefix         string `json:"prefix"`
+	MaxTitleRunes  int    `json:"maxTitleRunes"`
+	DisplayMode    string `json:"displayMode"`
+	ClickableLinks bool   `json:"clickableLinks"`
 }
 
 func Default() Config {
 	return Config{
-		Count:           10,
-		RefreshInterval: "15s",
-		SourceURL:       DefaultSourceURL,
-		Prefix:          "[GN] ",
-		MaxTitleRunes:   100,
-		DisplayMode:     "verb",
-		ClickableLinks:  false,
+		Count:          10,
+		SourceURL:      DefaultSourceURL,
+		Prefix:         "[GN] ",
+		MaxTitleRunes:  100,
+		DisplayMode:    "verb",
+		ClickableLinks: false,
 	}
 }
 
 func (c Config) Validate() error {
 	if c.Count < 1 || c.Count > 50 {
 		return fmt.Errorf("count must be between 1 and 50, got %d", c.Count)
-	}
-	interval, err := time.ParseDuration(c.RefreshInterval)
-	if err != nil {
-		return fmt.Errorf("invalid refreshInterval %q: %w", c.RefreshInterval, err)
-	}
-	if interval < 15*time.Second || interval > 24*time.Hour {
-		return errors.New("refreshInterval must be between 15s and 24h")
 	}
 	if c.SourceURL == "" {
 		return errors.New("sourceUrl cannot be empty")
@@ -69,11 +60,6 @@ func (c Config) Validate() error {
 	return nil
 }
 
-func (c Config) Interval() time.Duration {
-	d, _ := time.ParseDuration(c.RefreshInterval)
-	return d
-}
-
 func Dir() (string, error) {
 	if dir := os.Getenv("CLAUDE_GEEKNEWS_CONFIG_DIR"); dir != "" {
 		return filepath.Abs(dir)
@@ -81,17 +67,6 @@ func Dir() (string, error) {
 	base, err := os.UserConfigDir()
 	if err != nil {
 		return "", fmt.Errorf("find user config directory: %w", err)
-	}
-	return filepath.Join(base, appDirName), nil
-}
-
-func CacheDir() (string, error) {
-	if dir := os.Getenv("CLAUDE_GEEKNEWS_CACHE_DIR"); dir != "" {
-		return filepath.Abs(dir)
-	}
-	base, err := os.UserCacheDir()
-	if err != nil {
-		return "", fmt.Errorf("find user cache directory: %w", err)
 	}
 	return filepath.Join(base, appDirName), nil
 }
@@ -123,14 +98,28 @@ func LoadFile(path string) (Config, error) {
 	}
 	defer f.Close()
 
-	decoder := json.NewDecoder(io.LimitReader(f, 1<<20))
+	data, err := io.ReadAll(io.LimitReader(f, (1<<20)+1))
+	if err != nil {
+		return Config{}, fmt.Errorf("read config %s: %w", path, err)
+	}
+	if len(data) > 1<<20 {
+		return Config{}, fmt.Errorf("config exceeds 1 MiB: %s", path)
+	}
+
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return Config{}, fmt.Errorf("parse config %s: %w", path, err)
+	}
+	delete(fields, "refreshInterval")
+	data, err = json.Marshal(fields)
+	if err != nil {
+		return Config{}, fmt.Errorf("normalize config %s: %w", path, err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&c); err != nil {
 		return Config{}, fmt.Errorf("parse config %s: %w", path, err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		return Config{}, fmt.Errorf("parse config %s: unexpected trailing JSON", path)
 	}
 	if err := c.Validate(); err != nil {
 		return Config{}, fmt.Errorf("validate config %s: %w", path, err)
@@ -162,8 +151,6 @@ func Set(c *Config, key, value string) error {
 			return fmt.Errorf("count must be an integer: %w", err)
 		}
 		next.Count = n
-	case "interval", "refreshinterval":
-		next.RefreshInterval = value
 	case "prefix":
 		next.Prefix = value
 	case "maxtitlerunes", "max-title-runes":

@@ -8,7 +8,7 @@ Show the latest [GeekNews](https://news.hada.io/new) headlines while Claude Code
 [GN] A practical guide to coding agents
 ```
 
-The default pool contains the 10 newest posts from the GeekNews latest page. The count, refresh interval, prefix, title length, source URL, display location, and experimental terminal hyperlinks are configurable.
+The default pool contains the 10 newest posts from the GeekNews latest page. The count, prefix, title length, source URL, display location, and experimental terminal hyperlinks are configurable.
 
 [Korean documentation](README.ko.md)
 
@@ -16,12 +16,20 @@ The default pool contains the 10 newest posts from the GeekNews latest page. The
 
 Claude Code cannot read spinner values directly from a URL. This tool installs two lightweight asynchronous hooks:
 
-- `SessionStart` checks for fresh headlines when a session starts or resumes.
-- `UserPromptSubmit` checks again when you submit a prompt.
+- `SessionStart` fetches headlines when a session starts or resumes.
+- `UserPromptSubmit` fetches them again when you submit a prompt.
 
-The default cache lifetime is 15 seconds, matching the public cache policy of the GeekNews latest page. A fresh cache exits without a network request. A stale cache is refreshed in the background, so Claude Code does not wait for the request. Running sessions pick up the updated settings automatically.
+Each hook performs a live request. The asynchronous hook does not make Claude Code wait for the network, and a successful result updates the pool used by subsequent spinner selections. There is no persistent headline cache.
 
 There is no daemon and no process stays resident between hook events.
+
+`spinnerVerbs` is a selection pool, not a timed playlist. Claude Code normally
+chooses one entry for a turn and keeps it until the turn resets. Built-in
+thinking progress, tool activity, or task status can temporarily replace the
+visible label, but Claude Code does not cycle through custom verbs on a timer.
+Because `UserPromptSubmit` runs asynchronously, its newly fetched pool is
+reliably available for subsequent selections rather than guaranteed for the
+turn that triggered the hook.
 
 ## Install
 
@@ -41,7 +49,6 @@ Pushing a version tag publishes prebuilt archives for Linux, macOS, and Windows 
 ```bash
 claude-geeknews-spinner install \
   --count 20 \
-  --interval 30s \
   --display verb \
   --prefix "[GeekNews] " \
   --max-title-runes 120
@@ -60,7 +67,6 @@ Change one value and refresh the active spinner immediately:
 
 ```bash
 claude-geeknews-spinner config set count 20
-claude-geeknews-spinner config set interval 1m
 claude-geeknews-spinner config set display tip
 claude-geeknews-spinner config set clickable-links true
 ```
@@ -70,7 +76,6 @@ Default configuration:
 ```json
 {
   "count": 10,
-  "refreshInterval": "15s",
   "sourceUrl": "https://news.hada.io/new",
   "prefix": "[GN] ",
   "maxTitleRunes": 100,
@@ -84,7 +89,6 @@ Supported values:
 | Setting | Values | Description |
 | --- | --- | --- |
 | `count` | 1 to 50 | Number of newest headlines. Pagination is followed when needed. |
-| `refreshInterval` | 15 seconds to 24 hours | Minimum age before another request is made. |
 | `sourceUrl` | Absolute HTTP or HTTPS URL | Supports the GeekNews HTML layout and Atom feeds. |
 | `prefix` | Any string | Text shown before each title. |
 | `maxTitleRunes` | 20 to 500 | Maximum title length before truncation. |
@@ -105,14 +109,14 @@ claude-geeknews-spinner status
 claude-geeknews-spinner uninstall [--purge]
 ```
 
-`refresh` forces an immediate network request. `status` reports the installation, config, cache size, and last successful fetch. `uninstall` removes only this tool's hooks and restores the spinner values that existed before installation. Add `--purge` to remove its config and cache too.
+`refresh` performs an immediate network request. `status` reports the installation and config paths. `uninstall` removes only this tool's hooks and restores the spinner values that existed before installation. Add `--purge` to remove its config too.
 
 ## Safety
 
 - Existing Claude Code settings and unrelated hooks are preserved.
 - Settings updates use a lock and an atomic file replacement.
 - Invalid Claude settings are never replaced with an empty object.
-- A failed or empty network response leaves the last successful cache active.
+- A failed or empty network response leaves the currently installed spinner settings unchanged.
 - Existing spinner values are saved at installation and restored at uninstall.
 - User changes made directly to managed spinner keys are detected instead of overwritten.
 - Control characters and bidirectional text controls are removed from remote titles.
