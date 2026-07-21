@@ -1,0 +1,13 @@
+{
+  "name": "geeknews-spinner",
+  "owner": {
+    "name": "saz"
+  },
+  "plugins": [
+    {
+      "name": "claude-geeknews-spinner",
+      "source": "./plugins/claude-geeknews-spinner",
+      "description": "Shows the latest GeekNews headlines in Claude Code's spinner."
+    }
+  ]
+}

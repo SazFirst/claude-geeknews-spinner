@@ -6,16 +6,8 @@ The format follows Keep a Changelog, and releases use semantic versioning.
 
 ## Unreleased
 
-### Added
+### Changed
 
-- Latest GeekNews headlines from the `/new` page.
-- Configurable count, prefix, title length, source, and display mode.
-- Near-real-time updates through asynchronous Claude Code hooks.
-- Live fetching on every hook event and paginated fetching for up to 50 headlines.
-- Safe settings merge, locking, atomic writes, and uninstall restoration.
-- Linux, macOS, and Windows release builds.
-- Optional OSC 8 terminal hyperlinks for GeekNews spinner titles.
-
-### Removed
-
-- Persistent headline caching and the `refreshInterval` setting.
+- Replaced the Go CLI with a Claude Code plugin.
+- The plugin refreshes the latest 10 GeekNews headlines through `SessionStart` and `UserPromptSubmit` hooks.
+- The plugin has no runtime package dependencies.

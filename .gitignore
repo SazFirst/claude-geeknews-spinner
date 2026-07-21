@@ -1,7 +1,4 @@
-/bin/
-/dist/
-*.test
-*.out
+node_modules/
 .DS_Store
 .idea/
 .vscode/

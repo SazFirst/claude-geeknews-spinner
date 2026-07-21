@@ -1,140 +1,46 @@
 # Claude GeekNews Spinner
 
-Show the latest [GeekNews](https://news.hada.io/new) headlines while Claude Code is working.
+Claude Code 스피너에 GeekNews 최신글을 표시하는 플러그인입니다.
+
+사용자용 CLI나 앱 설정은 없습니다. 플러그인을 활성화하면 비동기 `SessionStart`, `UserPromptSubmit` 훅이 자동으로 등록됩니다.
+
+## 설치
+
+이 저장소를 Git 호스트에 게시한 뒤 Claude Code에서 마켓플레이스를 추가하고 플러그인을 설치합니다.
 
 ```text
-[GN] A new open source database engine
-[GN] How a team reduced build time by 80 percent
-[GN] A practical guide to coding agents
+/plugin marketplace add <owner>/<repository>
+/plugin install claude-geeknews-spinner@geeknews-spinner
 ```
 
-The default pool contains the 10 newest posts from the GeekNews latest page. The count, prefix, title length, source URL, display location, and experimental terminal hyperlinks are configurable.
+자체 호스팅 Git 저장소는 첫 명령에 전체 Git URL을 사용합니다. `.claude-plugin/marketplace.json`이 포함된 플러그인 디렉터리를 가리킵니다. 매니페스트에 고정 버전을 두지 않았으므로 push된 Git 커밋은 `/plugin update`로 갱신할 수 있습니다.
 
-[Korean documentation](README.ko.md)
+플러그인에 포함된 갱신 스크립트를 실행하려면 Node.js 18 이상이 필요합니다.
 
-## How It Stays Current
-
-Claude Code cannot read spinner values directly from a URL. This tool installs two lightweight asynchronous hooks:
-
-- `SessionStart` fetches headlines when a session starts or resumes.
-- `UserPromptSubmit` fetches them again when you submit a prompt.
-
-Each hook performs a live request. The asynchronous hook does not make Claude Code wait for the network, and a successful result updates the pool used by subsequent spinner selections. There is no persistent headline cache.
-
-There is no daemon and no process stays resident between hook events.
-
-`spinnerVerbs` is a selection pool, not a timed playlist. Claude Code normally
-chooses one entry for a turn and keeps it until the turn resets. Built-in
-thinking progress, tool activity, or task status can temporarily replace the
-visible label, but Claude Code does not cycle through custom verbs on a timer.
-Because `UserPromptSubmit` runs asynchronously, its newly fetched pool is
-reliably available for subsequent selections rather than guaranteed for the
-turn that triggered the hook.
-
-## Install
-
-### With Go
-
-Go 1.21 or later is required.
+로컬 개발 시에는 플러그인 디렉터리를 직접 로드합니다.
 
 ```bash
-go install github.com/saz/claude-geeknews-spinner/cmd/claude-geeknews-spinner@latest
-claude-geeknews-spinner install
+claude --plugin-dir ./plugins/claude-geeknews-spinner
 ```
 
-Pushing a version tag publishes prebuilt archives for Linux, macOS, and Windows through GitHub Releases.
+## 동작
 
-### Customize During Installation
+세션 시작과 프롬프트 제출 때마다 훅이 백그라운드에서 GeekNews 최신글 페이지를 가져옵니다. 사용할 수 있는 첫 10개 글의 제목과 요약을 결합해 터미널 링크와 함께 `spinnerVerbs`에 기록합니다.
+
+갱신은 Claude Code를 기다리게 하지 않습니다. 네트워크 또는 파싱 오류가 나면 기존 스피너 값은 유지됩니다. 동시에 여러 갱신이 실행되면 마지막 작성 결과가 남습니다.
+
+플러그인을 제거하면 훅도 제거됩니다. 마지막으로 기록된 스피너 값은 다른 도구나 수동 편집으로 바꾸기 전까지 Claude 설정에 남습니다.
+
+## 개발
 
 ```bash
-claude-geeknews-spinner install \
-  --count 20 \
-  --display verb \
-  --prefix "[GeekNews] " \
-  --max-title-runes 120
+node --test plugins/claude-geeknews-spinner/scripts/*.test.mjs
+node --check plugins/claude-geeknews-spinner/scripts/refresh.mjs
+claude plugin validate .
 ```
 
-## Configuration
+기여 방법은 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하십시오.
 
-Show the active configuration and its path:
-
-```bash
-claude-geeknews-spinner config
-claude-geeknews-spinner config path
-```
-
-Change one value and refresh the active spinner immediately:
-
-```bash
-claude-geeknews-spinner config set count 20
-claude-geeknews-spinner config set display tip
-claude-geeknews-spinner config set clickable-links true
-```
-
-Default configuration:
-
-```json
-{
-  "count": 10,
-  "sourceUrl": "https://news.hada.io/new",
-  "prefix": "[GN] ",
-  "maxTitleRunes": 100,
-  "displayMode": "verb",
-  "clickableLinks": false
-}
-```
-
-Supported values:
-
-| Setting | Values | Description |
-| --- | --- | --- |
-| `count` | 1 to 50 | Number of newest headlines. Pagination is followed when needed. |
-| `sourceUrl` | Absolute HTTP or HTTPS URL | Supports the GeekNews HTML layout and Atom feeds. |
-| `prefix` | Any string | Text shown before each title. |
-| `maxTitleRunes` | 20 to 500 | Maximum title length before truncation. |
-| `displayMode` | `verb`, `tip`, `both` | Where Claude Code displays the headlines. |
-| `clickableLinks` | `true`, `false` | Wrap titles in experimental OSC 8 terminal links. |
-
-`verb` appends headlines to Claude Code's built-in spinner verbs, so the default verbs remain available. Claude Code may also use that phrase in its turn completion text. Each entry combines the title with the first summary line when GeekNews provides one. `tip` uses the secondary tips area. `both` writes to both locations.
-
-When `clickableLinks` is enabled, supported terminals can open a headline with Cmd+click on macOS or Ctrl+click on Linux and Windows. Claude Code does not document OSC 8 support for `spinnerVerbs`, so unsupported renderers may fall back to plain text or strip the link.
-
-## Commands
-
-```text
-claude-geeknews-spinner install [options]
-claude-geeknews-spinner refresh
-claude-geeknews-spinner config [show|path|set <key> <value>]
-claude-geeknews-spinner status
-claude-geeknews-spinner uninstall [--purge]
-```
-
-`refresh` performs an immediate network request. `status` reports the installation and config paths. `uninstall` removes only this tool's hooks and restores the spinner values that existed before installation. Add `--purge` to remove its config too.
-
-## Safety
-
-- Existing Claude Code settings and unrelated hooks are preserved.
-- Settings updates use an atomic file replacement.
-- Invalid Claude settings are never replaced with an empty object.
-- A failed or empty network response leaves the currently installed spinner settings unchanged.
-- Existing spinner values are saved at installation and restored at uninstall.
-- Control characters and bidirectional text controls are removed from remote titles.
-- `CLAUDE_CONFIG_DIR` is honored for alternate Claude Code profiles.
-
-The tool requests only the configured source URL. It does not collect telemetry.
-
-## Development
-
-```bash
-go test ./...
-go test -race ./...
-go vet ./...
-go build ./cmd/claude-geeknews-spinner
-```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution details.
-The [design notes](docs/design.md) compare the refresh model with related spinner projects.
-
-## License
+## 라이선스
 
 MIT
