@@ -1,8 +1,8 @@
 # Claude GeekNews Spinner
 
-Claude Code 스피너에 GeekNews 최신글을 표시하는 플러그인입니다.
+Claude Code가 작업하는 동안 스피너에 GeekNews 최신글을 표시하는 플러그인입니다.
 
-사용자용 CLI나 앱 설정은 없습니다. 플러그인을 활성화하면 비동기 `SessionStart`, `UserPromptSubmit` 훅이 자동으로 등록됩니다.
+별도의 CLI나 설정은 필요하지 않습니다.
 
 ## 설치
 
@@ -13,7 +13,11 @@ Claude Code에서 아래 명령을 순서대로 실행합니다.
 /plugin install claude-geeknews-spinner@geeknews-spinner
 ```
 
-설치 후 새 세션을 열면 자동으로 동작합니다. 업데이트가 있으면 다음 명령으로 적용합니다.
+설치 후 새 세션을 열면 자동으로 동작합니다.
+
+## 업데이트
+
+새 버전은 다음 명령으로 적용합니다.
 
 ```text
 /plugin update claude-geeknews-spinner@geeknews-spinner
@@ -21,8 +25,35 @@ Claude Code에서 아래 명령을 순서대로 실행합니다.
 
 ## 동작
 
-세션 시작과 프롬프트 제출 때마다 훅이 백그라운드에서 GeekNews 최신글 페이지를 가져옵니다. 사용할 수 있는 첫 10개 글의 제목과 요약을 결합해 터미널 링크와 함께 `spinnerVerbs`를 대체합니다.
+설치하면 플러그인의 `hooks/hooks.json`이 다음 비동기 훅을 등록합니다.
 
-갱신은 Claude Code를 기다리게 하지 않습니다. 네트워크 또는 파싱 오류가 나면 기존 스피너 값은 유지됩니다. 동시에 여러 갱신이 실행되면 마지막 작성 결과가 남습니다.
+- `SessionStart`: Claude Code 세션을 시작할 때
+- `UserPromptSubmit`: 프롬프트를 제출할 때
 
-플러그인을 제거하면 훅도 제거됩니다. 마지막으로 기록된 스피너 값은 다른 도구나 수동 편집으로 바꾸기 전까지 Claude 설정에 남습니다.
+두 훅은 `scripts/refresh.mjs`를 백그라운드에서 실행합니다. 이 스크립트는 GeekNews 최신글 페이지에서 최근 10개 글의 제목과 요약을 가져와 터미널 링크 형식의 스피너 문구로 만듭니다.
+
+생성한 문구는 Claude Code 설정의 `spinnerVerbs`를 교체합니다. 따라서 Claude Code가 작업 중일 때 기본 스피너 문구 대신 GeekNews 항목 중 하나가 표시됩니다.
+
+설정 파일은 다음 순서로 수정됩니다.
+
+- `CLAUDE_CONFIG_DIR`가 설정된 경우: `$CLAUDE_CONFIG_DIR/settings.json`
+- 설정되지 않은 경우: `~/.claude/settings.json`
+
+## 제거
+
+```text
+/plugin uninstall claude-geeknews-spinner@geeknews-spinner
+```
+
+플러그인을 제거하면 훅과 자동 갱신이 중지됩니다. 이미 기록된 `spinnerVerbs` 값은 Claude Code 설정 파일에 남습니다.
+
+기본 스피너 문구로 되돌리려면 앞서 안내한 Claude Code 설정 파일을 열어 최상위 `spinnerVerbs` 항목 전체를 삭제한 뒤 Claude Code를 새로 시작합니다.
+
+```json
+{
+  "spinnerVerbs": {
+    "mode": "replace",
+    "verbs": ["..."]
+  }
+}
+```
