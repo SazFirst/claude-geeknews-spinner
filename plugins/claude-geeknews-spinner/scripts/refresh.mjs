@@ -33,7 +33,7 @@ export async function refresh(fetchImpl = fetch) {
 
   const path = settingsPath();
   const settings = await readSettings(path);
-  settings.spinnerVerbs = { mode: "append", verbs: headlines };
+  settings.spinnerVerbs = { mode: "replace", verbs: headlines };
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   await writeFile(path, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
   return headlines.length;

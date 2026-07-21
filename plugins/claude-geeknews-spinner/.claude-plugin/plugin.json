@@ -2,8 +2,7 @@
   "name": "claude-geeknews-spinner",
   "description": "Refresh Claude Code spinner verbs with the latest GeekNews headlines.",
   "author": {
-    "name": "saz"
+    "name": "SazFirst"
   },
-  "license": "MIT",
   "keywords": ["claude-code", "hooks", "geeknews"]
 }
