@@ -2,6 +2,8 @@
 
 Claude Code가 작업하는 동안 스피너에 GeekNews 최신글을 표시하는 플러그인입니다.
 
+![Claude Code 스피너에 표시된 GeekNews 최신글](example.png)
+
 ## 설치
 
 Claude Code에서 아래 명령을 순서대로 실행합니다.
