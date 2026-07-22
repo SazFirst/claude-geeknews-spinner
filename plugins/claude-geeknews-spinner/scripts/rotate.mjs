@@ -64,7 +64,14 @@ function wait(durationMs) {
 }
 
 async function readHookInput() {
-  const input = await readFile(0, "utf8");
+  let input = "";
+  for await (const chunk of process.stdin) {
+    input += chunk;
+  }
+  return parseSessionId(input);
+}
+
+export function parseSessionId(input) {
   const { session_id: sessionId } = JSON.parse(input);
   if (typeof sessionId !== "string" || sessionId.length === 0) {
     throw new Error("hook input did not include a session_id");

@@ -4,7 +4,12 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { startRotator, stopRotator } from "./rotate.mjs";
+import { parseSessionId, startRotator, stopRotator } from "./rotate.mjs";
+
+test("reads the Claude Code session identifier from hook input", () => {
+  assert.equal(parseSessionId('{"session_id":"session-1"}'), "session-1");
+  assert.throws(() => parseSessionId('{}'), /did not include a session_id/);
+});
 
 test("rotator updates the selected headline and stops when requested", async (t) => {
   const directory = await mkdtemp(join(tmpdir(), "claude-geeknews-spinner-"));
