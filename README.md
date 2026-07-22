@@ -28,12 +28,13 @@ Claude Code에서 아래 명령을 순서대로 실행합니다.
 설치하면 플러그인의 `hooks/hooks.json`이 다음 훅을 등록합니다.
 
 - `SessionStart`: Claude Code 세션을 시작할 때
-- `UserPromptSubmit`: 프롬프트를 제출할 때 rotator를 시작
-- `Stop`: Claude의 응답이 끝날 때 rotator를 중지
+- `UserPromptSubmit`: 프롬프트를 제출할 때
 
-`SessionStart` 훅은 `scripts/refresh.mjs`를 백그라운드에서 실행해 최신 제목 목록을 준비합니다. `UserPromptSubmit` 훅은 `scripts/rotate.mjs`를 백그라운드에서 시작합니다. rotator는 응답이 진행되는 동안 즉시 한 번, 이후 20초마다 GeekNews 최신글 페이지를 다시 가져옵니다.
+두 훅은 `scripts/refresh.mjs`를 백그라운드에서 실행해 GeekNews 최신글 목록을 갱신합니다.
 
-후보군은 최근 24시간 내 모든 글입니다. 이 기간의 글이 10개보다 적으면 최신순으로 이전 글을 추가해 최소 10개를 유지합니다. 각 갱신에서는 후보군 중 순서대로 하나를 골라 `[10p] 제목 - 요약`과 터미널 링크를 포함한 하나의 `spinnerVerbs` 값으로 교체합니다. 따라서 Claude Code가 작업 중일 때 기본 스피너 문구 대신 GeekNews 항목이 20초 간격으로 바뀝니다. `Stop` 훅은 응답이 끝난 뒤 다음 주기에 rotator가 종료되도록 합니다.
+후보군은 최근 24시간 내 모든 글입니다. 이 기간의 글이 10개보다 적으면 최신순으로 이전 글을 추가해 최소 10개를 유지합니다. 각 항목은 `[10p] 제목 - 요약`과 터미널 링크를 포함합니다.
+
+생성한 목록은 다음에 Claude Code가 spinner 문구를 선택할 때 사용됩니다. 이미 진행 중인 요청의 spinner 문구는 Claude Code가 설정 변경을 실시간으로 반영하지 않으므로 바뀌지 않습니다.
 
 설정 파일은 다음 순서로 수정됩니다.
 

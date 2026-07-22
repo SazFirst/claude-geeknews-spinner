@@ -1,5 +1,5 @@
 {
-  "description": "Show rotating GeekNews headlines in the Claude Code spinner.",
+  "description": "Refresh Claude Code spinner verbs with the latest GeekNews headlines.",
   "hooks": {
     "SessionStart": [
       {
@@ -20,21 +20,9 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/rotate.mjs", "start"],
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/refresh.mjs"],
             "async": true,
-            "timeout": 3600
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/rotate.mjs", "stop"],
-            "timeout": 5
+            "timeout": 15
           }
         ]
       }
