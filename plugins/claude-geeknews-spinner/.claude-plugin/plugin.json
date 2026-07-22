@@ -1,6 +1,6 @@
 {
   "name": "claude-geeknews-spinner",
-  "description": "Refresh Claude Code spinner verbs with the latest GeekNews headlines.",
+  "description": "Rotate the Claude Code spinner through the latest GeekNews headlines.",
   "author": {
     "name": "SazFirst"
   },

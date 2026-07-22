@@ -4,11 +4,59 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SOURCE_URL = "https://news.hada.io/new";
-const HEADLINE_COUNT = 10;
+const LOOKBACK_MS = 24 * 60 * 60 * 1_000;
+const MIN_HEADLINE_COUNT = 10;
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
 export async function refresh(fetchImpl = fetch) {
-  const response = await fetchImpl(SOURCE_URL, {
+  const headlines = await fetchHeadlines(fetchImpl);
+  await writeSpinnerVerbs(headlines);
+  return headlines.length;
+}
+
+export async function refreshOne(index, fetchImpl = fetch) {
+  const headlines = await fetchHeadlines(fetchImpl);
+  const headline = headlineAt(headlines, index);
+  await writeSpinnerVerbs([headline]);
+  return headline;
+}
+
+export function headlineAt(headlines, index) {
+  if (headlines.length === 0) {
+    throw new Error("GeekNews latest page contained no usable topics");
+  }
+  return headlines[index % headlines.length];
+}
+
+export async function fetchHeadlines(fetchImpl = fetch, now = Date.now()) {
+  const cutoff = now - LOOKBACK_MS;
+  const topics = [];
+
+  for (let page = 1; ; page += 1) {
+    const pageTopics = await fetchTopicsPage(page, fetchImpl);
+    if (pageTopics.length === 0) break;
+    topics.push(...pageTopics);
+
+    const candidates = selectCandidateTopics(topics, cutoff);
+    const hasOlderTopic = pageTopics.some((topic) => topic.timestamp < cutoff);
+    if (hasOlderTopic && candidates.length >= MIN_HEADLINE_COUNT) {
+      return candidates.map(formatHeadline);
+    }
+  }
+
+  const candidates = selectCandidateTopics(topics, cutoff);
+  headlineAt(candidates, 0);
+  return candidates.map(formatHeadline);
+}
+
+export function selectCandidateTopics(topics, cutoff) {
+  const recentCount = topics.filter((topic) => topic.timestamp >= cutoff).length;
+  return topics.slice(0, Math.max(recentCount, MIN_HEADLINE_COUNT));
+}
+
+async function fetchTopicsPage(page, fetchImpl) {
+  const url = page === 1 ? SOURCE_URL : `${SOURCE_URL}?page=${page}`;
+  const response = await fetchImpl(url, {
     headers: {
       Accept: "text/html",
       "User-Agent": "claude-geeknews-spinner",
@@ -26,40 +74,53 @@ export async function refresh(fetchImpl = fetch) {
   if (body.length > MAX_RESPONSE_BYTES) {
     throw new Error("GeekNews response exceeds 2 MiB");
   }
-  const headlines = parseTopics(body.toString("utf8"));
-  if (headlines.length === 0) {
-    throw new Error("GeekNews latest page contained no usable topics");
-  }
+  return parseTopicRows(body.toString("utf8"));
+}
 
+async function writeSpinnerVerbs(verbs) {
   const path = settingsPath();
   const settings = await readSettings(path);
-  settings.spinnerVerbs = { mode: "replace", verbs: headlines };
+  settings.spinnerVerbs = { mode: "replace", verbs };
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   await writeFile(path, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
-  return headlines.length;
 }
 
 export function parseTopics(html) {
   const starts = [...html.matchAll(/<div\b[^>]*\bclass\s*=\s*["'][^"']*\btopic_row\b[^"']*["'][^>]*>/gi)];
-  const headlines = [];
-  for (let index = 0; index < starts.length && headlines.length < HEADLINE_COUNT; index += 1) {
+  const topics = [];
+  for (let index = 0; index < starts.length; index += 1) {
     const start = starts[index];
     const row = html.slice(start.index, starts[index + 1]?.index);
     const id = row.match(/\bdata-topic-state-id\s*=\s*["']([^"']+)["']/i)?.[1];
     const title = findText(row, "h2", "topic-title-heading");
     if (!id || !title) continue;
     const summary = findText(row, "div", "topicdesc");
-    headlines.push(formatHeadline({
+    const points = Number.parseInt(
+      row.match(/<span\b[^>]*\bid\s*=\s*["']tp[^"']+["'][^>]*>\s*(\d+)\s*<\/span>\s*points?\b/i)?.[1] ?? "0",
+      10,
+    );
+    const timestamp = Number.parseInt(
+      row.match(/<time\b[^>]*\bdata-timestamp\s*=\s*["'](\d+)["']/i)?.[1] ?? "0",
+      10,
+    ) * 1_000;
+    if (!Number.isSafeInteger(timestamp) || timestamp <= 0) continue;
+    topics.push({
       title,
       summary,
+      points: Number.isSafeInteger(points) && points >= 0 ? points : 0,
+      timestamp,
       url: `https://news.hada.io/topic?id=${encodeURIComponent(id)}`,
-    }));
+    });
   }
-  return headlines;
+  return topics;
 }
 
-export function formatHeadline({ title, summary, url }) {
-  const text = summary ? `${title} - ${summary}` : title;
+export function parseTopicRows(html) {
+  return parseTopics(html);
+}
+
+export function formatHeadline({ title, summary, points = 0, url }) {
+  const text = summary ? `[${points}p] ${title} - ${summary}` : `[${points}p] ${title}`;
   let link;
   try {
     link = new URL(url);
