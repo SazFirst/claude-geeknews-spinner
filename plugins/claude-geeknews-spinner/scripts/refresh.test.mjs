@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
-import { cleanText, fetchHeadlines, formatHeadline, headlineAt, parseTopics, selectCandidateTopics } from "./refresh.mjs";
+import { cleanText, fetchHeadlines, formatHeadline, headlineAt, parseTopics, refresh, selectCandidateTopics, selectNextCandidate } from "./refresh.mjs";
 
 test("parses the latest GeekNews topics", () => {
   const headlines = parseTopics(`
@@ -70,12 +73,77 @@ test("loads another page to include every topic from the last day", async () => 
   assert.match(requests[1], /\?page=2$/);
 });
 
+test("selects the newest unseen topic before rotating existing candidates", () => {
+  const candidates = [
+    { id: "newest" },
+    { id: "middle" },
+    { id: "oldest" },
+  ];
+
+  assert.equal(selectNextCandidate(candidates, {
+    candidateIds: ["middle", "oldest"],
+    lastTopicId: "middle",
+  }).id, "newest");
+  assert.equal(selectNextCandidate(candidates, {
+    candidateIds: ["newest", "middle", "oldest"],
+    lastTopicId: "newest",
+  }).id, "middle");
+  assert.equal(selectNextCandidate(candidates, {
+    candidateIds: ["newest", "middle", "oldest"],
+    lastTopicId: "oldest",
+  }).id, "newest");
+});
+
+test("writes one spinner verb and persists newest-first rotation", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "claude-geeknews-spinner-"));
+  const previousConfigDirectory = process.env.CLAUDE_CONFIG_DIR;
+  let rows = recentTopicRows([101, 100, 99]);
+  const fetchImpl = async (url) => htmlResponse(url.endsWith("?page=2") ? "" : rows);
+
+  try {
+    process.env.CLAUDE_CONFIG_DIR = directory;
+
+    await refresh(fetchImpl);
+    await assertSpinnerTitle(directory, "Topic 101");
+
+    await refresh(fetchImpl);
+    await assertSpinnerTitle(directory, "Topic 100");
+
+    rows = recentTopicRows([102, 101, 100, 99]);
+    await refresh(fetchImpl);
+    await assertSpinnerTitle(directory, "Topic 102");
+
+    const state = JSON.parse(await readFile(join(directory, "claude-geeknews-spinner", "rotation-state.json"), "utf8"));
+    assert.deepEqual(state.candidateIds, ["102", "101", "100", "99"]);
+    assert.equal(state.lastTopicId, "102");
+  } finally {
+    if (previousConfigDirectory === undefined) {
+      delete process.env.CLAUDE_CONFIG_DIR;
+    } else {
+      process.env.CLAUDE_CONFIG_DIR = previousConfigDirectory;
+    }
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 function topicHtml(id, timestamp) {
   return `<div class="topic_row" data-topic-state-id="${id}">
     <h2 class="topic-title-heading">Topic ${id}</h2>
     <div class="topicdesc">Summary ${id}</div>
     <div class="topicinfo"><span id="tp${id}">10</span> points <time data-timestamp="${timestamp}">now</time></div>
   </div>`;
+}
+
+function recentTopicRows(ids) {
+  const timestamp = Math.floor(Date.now() / 1_000);
+  return ids.map((id, index) => topicHtml(id, timestamp - index * 60)).join("");
+}
+
+async function assertSpinnerTitle(directory, title) {
+  const settings = JSON.parse(await readFile(join(directory, "settings.json"), "utf8"));
+  assert.equal(settings.spinnerVerbs.mode, "replace");
+  assert.equal(settings.spinnerVerbs.verbs.length, 1);
+  assert.match(settings.spinnerVerbs.verbs[0], new RegExp(title));
 }
 
 function htmlResponse(html) {

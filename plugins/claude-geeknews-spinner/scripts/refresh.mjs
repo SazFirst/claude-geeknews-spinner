@@ -9,9 +9,17 @@ const MIN_HEADLINE_COUNT = 10;
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
 export async function refresh(fetchImpl = fetch) {
-  const headlines = await fetchHeadlines(fetchImpl);
-  await writeSpinnerVerbs(headlines);
-  return headlines.length;
+  const candidates = await fetchCandidateTopics(fetchImpl);
+  const statePath = rotationStatePath();
+  const state = await readRotationState(statePath);
+  const selected = selectNextCandidate(candidates, state);
+
+  await writeSpinnerVerbs([formatHeadline(selected)]);
+  await writeRotationState(statePath, {
+    candidateIds: candidates.map((candidate) => candidate.id),
+    lastTopicId: selected.id,
+  });
+  return selected;
 }
 
 export async function refreshOne(index, fetchImpl = fetch) {
@@ -29,6 +37,11 @@ export function headlineAt(headlines, index) {
 }
 
 export async function fetchHeadlines(fetchImpl = fetch, now = Date.now()) {
+  const candidates = await fetchCandidateTopics(fetchImpl, now);
+  return candidates.map(formatHeadline);
+}
+
+export async function fetchCandidateTopics(fetchImpl = fetch, now = Date.now()) {
   const cutoff = now - LOOKBACK_MS;
   const topics = [];
 
@@ -40,18 +53,32 @@ export async function fetchHeadlines(fetchImpl = fetch, now = Date.now()) {
     const candidates = selectCandidateTopics(topics, cutoff);
     const hasOlderTopic = pageTopics.some((topic) => topic.timestamp < cutoff);
     if (hasOlderTopic && candidates.length >= MIN_HEADLINE_COUNT) {
-      return candidates.map(formatHeadline);
+      return candidates;
     }
   }
 
   const candidates = selectCandidateTopics(topics, cutoff);
   headlineAt(candidates, 0);
-  return candidates.map(formatHeadline);
+  return candidates;
 }
 
 export function selectCandidateTopics(topics, cutoff) {
-  const recentCount = topics.filter((topic) => topic.timestamp >= cutoff).length;
-  return topics.slice(0, Math.max(recentCount, MIN_HEADLINE_COUNT));
+  const newestFirst = [...topics].sort((left, right) => right.timestamp - left.timestamp);
+  const recentCount = newestFirst.filter((topic) => topic.timestamp >= cutoff).length;
+  return newestFirst.slice(0, Math.max(recentCount, MIN_HEADLINE_COUNT));
+}
+
+export function selectNextCandidate(candidates, previousState = {}) {
+  if (candidates.length === 0) {
+    throw new Error("GeekNews latest page contained no usable topics");
+  }
+
+  const previousIds = new Set(Array.isArray(previousState.candidateIds) ? previousState.candidateIds : []);
+  const newestNewCandidate = candidates.find((candidate) => !previousIds.has(candidate.id));
+  if (newestNewCandidate) return newestNewCandidate;
+
+  const previousIndex = candidates.findIndex((candidate) => candidate.id === previousState.lastTopicId);
+  return candidates[(previousIndex + 1) % candidates.length] || candidates[0];
 }
 
 async function fetchTopicsPage(page, fetchImpl) {
@@ -85,6 +112,32 @@ async function writeSpinnerVerbs(verbs) {
   await writeFile(path, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
 }
 
+function rotationStatePath() {
+  return join(configDirectory(), "claude-geeknews-spinner", "rotation-state.json");
+}
+
+async function readRotationState(path) {
+  try {
+    const data = await readFile(path, "utf8");
+    if (Buffer.byteLength(data) > 1024 * 1024) {
+      throw new Error("Claude GeekNews spinner state exceeds 1 MiB");
+    }
+    const state = JSON.parse(data);
+    if (!state || Array.isArray(state) || typeof state !== "object") {
+      throw new Error("Claude GeekNews spinner state must be a JSON object");
+    }
+    return state;
+  } catch (error) {
+    if (error.code === "ENOENT") return {};
+    throw error;
+  }
+}
+
+async function writeRotationState(path, state) {
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  await writeFile(path, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
+}
+
 export function parseTopics(html) {
   const starts = [...html.matchAll(/<div\b[^>]*\bclass\s*=\s*["'][^"']*\btopic_row\b[^"']*["'][^>]*>/gi)];
   const topics = [];
@@ -105,6 +158,7 @@ export function parseTopics(html) {
     ) * 1_000;
     if (!Number.isSafeInteger(timestamp) || timestamp <= 0) continue;
     topics.push({
+      id,
       title,
       summary,
       points: Number.isSafeInteger(points) && points >= 0 ? points : 0,
@@ -160,7 +214,11 @@ function decodeEntities(value) {
 }
 
 function settingsPath() {
-  return join(process.env.CLAUDE_CONFIG_DIR || homedir(), process.env.CLAUDE_CONFIG_DIR ? "settings.json" : ".claude/settings.json");
+  return join(configDirectory(), "settings.json");
+}
+
+function configDirectory() {
+  return process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude");
 }
 
 async function readSettings(path) {
